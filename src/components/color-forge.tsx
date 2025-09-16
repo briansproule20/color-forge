@@ -3,7 +3,6 @@
 import { useState } from "react";
 import PaletteManager from "./palette-manager";
 import { usePalettes } from "@/hooks/usePalettes";
-import { SavedPalette } from "@/lib/palette-storage";
 
 interface Color {
   hex: string;
@@ -107,7 +106,7 @@ export default function ColorForge() {
         category: 'custom'
       });
       alert('Palette saved successfully!');
-    } catch (err) {
+    } catch {
       alert('Failed to save palette');
     }
   };
