@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'ColorForge',
-  description: 'AI-powered color palette generator and image creation tool',
+  description: 'AI-powered color palette generator using advanced color theory to create beautiful, harmonious color schemes for any project',
   icons: {
     icon: [
       { url: '/icon.png', sizes: '32x32', type: 'image/png' },
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: 'ColorForge',
-    description: 'AI-powered color palette generator and image creation tool',
+    description: 'AI-powered color palette generator using advanced color theory to create beautiful, harmonious color schemes for any project',
     url: 'https://colorforge.com',
     siteName: 'ColorForge',
     images: [
@@ -44,7 +44,7 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary',
     title: 'ColorForge',
-    description: 'AI-powered color palette generator and image creation tool',
+    description: 'AI-powered color palette generator using advanced color theory to create beautiful, harmonious color schemes for any project',
     images: ['/icon.png'],
   },
 };

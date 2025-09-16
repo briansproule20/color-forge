@@ -11,9 +11,12 @@ import { ERROR_MESSAGES } from '@/lib/constants';
  */
 export async function handleOpenAIGenerate(prompt: string): Promise<Response> {
   try {
+    // Enhance prompt for color palette visualization
+    const enhancedPrompt = `Create a beautiful color palette visualization: ${prompt}. Design this as a clean, modern color palette display with color swatches, showing the harmony and relationship between colors. Include color names or hex codes if relevant. Style: minimalist, professional color palette design.`;
+
     const result = await generateImage({
       model: openai.image('gpt-image-1'),
-      prompt,
+      prompt: enhancedPrompt,
     });
 
     const imageData = result.image;
