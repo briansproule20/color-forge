@@ -19,7 +19,7 @@
     "ai": "^5.0.40",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.263.1",
+    "lucide-react": "^0.468.0",
     "nanoid": "^5.1.5",
     "next": "15.4.7",
     "openai": "^5.20.3",
