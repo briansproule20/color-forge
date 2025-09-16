@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { usePalettes } from '@/hooks/usePalettes';
 import { SavedPalette } from '@/lib/palette-storage';
 
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface PaletteManagerProps {}
 
 export default function PaletteManager({}: PaletteManagerProps) {
@@ -44,7 +45,7 @@ export default function PaletteManager({}: PaletteManagerProps) {
     cssContent += `/* Color Theory: ${palette.colorTheory} */\n\n`;
     cssContent += `:root {\n`;
     
-    palette.colors.forEach((color, index) => {
+    palette.colors.forEach((color) => {
       const varName = color.role.toLowerCase().replace(/\s+/g, '-');
       cssContent += `  --${varName}: ${color.hex};\n`;
     });

@@ -31,18 +31,6 @@ export default function ColorForge() {
 
   const { savePalette } = usePalettes();
 
-  const handlePaletteSelect = (selectedPalette: SavedPalette) => {
-    // Convert SavedPalette to PaletteData format
-    const paletteData: PaletteData = {
-      name: selectedPalette.name,
-      description: selectedPalette.description,
-      colors: selectedPalette.colors,
-      colorTheory: selectedPalette.colorTheory,
-      useCases: selectedPalette.useCases
-    };
-    setPalette(paletteData);
-    setActiveTab('generate'); // Switch to generate tab to show the selected palette
-  };
 
   const generatePalette = async () => {
     if (!prompt.trim() && !imageFile) return;
@@ -119,7 +107,7 @@ export default function ColorForge() {
         category: 'custom'
       });
       alert('Palette saved successfully!');
-    } catch (error) {
+    } catch (err) {
       alert('Failed to save palette');
     }
   };
@@ -223,6 +211,7 @@ export default function ColorForge() {
             )}
           </div>
           {imagePreview && (
+            /* eslint-disable-next-line @next/next/no-img-element */
             <img
               src={imagePreview}
               alt="Preview"
