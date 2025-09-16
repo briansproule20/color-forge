@@ -19,11 +19,11 @@ export const metadata: Metadata = {
   description: 'AI-powered color palette generator using advanced color theory to create beautiful, harmonious color schemes for any project',
   icons: {
     icon: [
-      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
-      { url: '/favicon.ico', sizes: '32x32', type: 'image/x-icon' }
+      { url: '/favicon.png?v=2', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon.ico?v=2', sizes: '32x32', type: 'image/x-icon' }
     ],
-    shortcut: '/icon.png',
-    apple: '/icon.png',
+    shortcut: '/favicon.png?v=2',
+    apple: '/favicon.png?v=2',
   },
   openGraph: {
     title: 'ColorForge',
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     siteName: 'ColorForge',
     images: [
       {
-        url: '/icon.png',
+        url: '/favicon.png',
         width: 512,
         height: 512,
         alt: 'ColorForge Logo',
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     card: 'summary',
     title: 'ColorForge',
     description: 'AI-powered color palette generator using advanced color theory to create beautiful, harmonious color schemes for any project',
-    images: ['/icon.png'],
+    images: ['/favicon.png'],
   },
 };
 

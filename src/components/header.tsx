@@ -12,7 +12,7 @@ export default async function Header() {
           <div className="flex items-center">
             <Link href="/" className="flex items-center space-x-2">
               <Image
-                src="/icon.png"
+                src="/favicon.png?v=2"
                 alt="ColorForge"
                 width={32}
                 height={32}
