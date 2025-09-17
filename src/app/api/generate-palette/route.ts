@@ -1,4 +1,4 @@
-import { openai } from "@/echo";
+import { openai, getEchoToken, isSignedIn } from "@/echo";
 import { generateObject } from "ai";
 import { z } from "zod";
 
@@ -19,6 +19,34 @@ export async function POST(req: Request) {
     console.log('=== Palette Generation Request ===');
     console.log('ECHO_APP_ID available:', !!process.env.ECHO_APP_ID);
     console.log('ECHO_APP_ID value:', process.env.ECHO_APP_ID?.substring(0, 8) + '...');
+
+    // Check authentication status
+    const signedIn = await isSignedIn();
+    console.log('User signed in:', signedIn);
+
+    if (!signedIn) {
+      console.log('User not signed in, returning 401');
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // Get and log token info
+    try {
+      const token = await getEchoToken();
+      console.log('Echo token available:', !!token);
+      console.log('Token type:', typeof token);
+      if (token && typeof token === 'string') {
+        console.log('Token length:', token.length);
+        console.log('Token starts with:', token.substring(0, 20) + '...');
+      }
+    } catch (tokenError) {
+      console.error('Error getting Echo token:', tokenError);
+    }
 
     const contentType = req.headers.get('content-type');
     let prompt = '';
