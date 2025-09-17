@@ -16,9 +16,14 @@ const createPaletteSchema = (numColors: number) => z.object({
 
 export async function POST(req: Request) {
   try {
+    console.log('=== Palette Generation Request ===');
+    console.log('Headers:', Object.fromEntries(req.headers.entries()));
+
     const contentType = req.headers.get('content-type');
     let prompt = '';
     let numColors = 5; // Default value
+
+    console.log('Content-Type:', contentType);
 
     if (contentType?.includes('multipart/form-data')) {
       // Handle form data with potential image
@@ -62,11 +67,14 @@ export async function POST(req: Request) {
     }
 
     if (!prompt) {
+      console.log('Error: No prompt provided');
       return Response.json(
         { error: "Prompt is required" },
         { status: 400 }
       );
     }
+
+    console.log('Generating palette for prompt:', prompt, 'with', numColors, 'colors');
 
     const result = await generateObject({
       model: openai("gpt-4o"),
@@ -75,11 +83,18 @@ export async function POST(req: Request) {
       schema: createPaletteSchema(numColors),
     });
 
+    console.log('Generated palette successfully:', result.object.name);
     return Response.json(result.object);
   } catch (error) {
     console.error('Palette generation error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Error message:', error instanceof Error ? error.message : String(error));
+
     return Response.json(
-      { error: 'Failed to generate palette. Please try again.' },
+      {
+        error: 'Failed to generate palette. Please try again.',
+        details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
+      },
       { status: 500 }
     );
   }
