@@ -90,13 +90,20 @@ export async function POST(req: Request) {
     console.error('Palette generation error:', error);
     console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
     console.error('Error message:', error instanceof Error ? error.message : String(error));
+    console.error('Error type:', typeof error);
+    console.error('Error keys:', error && typeof error === 'object' ? Object.keys(error) : 'none');
 
-    return Response.json(
-      {
+    return new Response(
+      JSON.stringify({
         error: 'Failed to generate palette. Please try again.',
         details: process.env.NODE_ENV === 'development' ? (error instanceof Error ? error.message : String(error)) : undefined
-      },
-      { status: 500 }
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
     );
   }
 }
