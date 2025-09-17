@@ -17,7 +17,8 @@ const createPaletteSchema = (numColors: number) => z.object({
 export async function POST(req: Request) {
   try {
     console.log('=== Palette Generation Request ===');
-    console.log('Headers:', Object.fromEntries(req.headers.entries()));
+    console.log('ECHO_APP_ID available:', !!process.env.ECHO_APP_ID);
+    console.log('ECHO_APP_ID value:', process.env.ECHO_APP_ID?.substring(0, 8) + '...');
 
     const contentType = req.headers.get('content-type');
     let prompt = '';
