@@ -43,6 +43,21 @@ export async function POST(req: Request) {
       if (token && typeof token === 'string') {
         console.log('Token length:', token.length);
         console.log('Token starts with:', token.substring(0, 20) + '...');
+
+        // Decode JWT payload to check expiration and permissions
+        try {
+          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+          console.log('JWT payload:', {
+            exp: payload.exp,
+            iat: payload.iat,
+            scope: payload.scope,
+            app_id: payload.app_id,
+            currentTime: Math.floor(Date.now() / 1000),
+            isExpired: payload.exp < Math.floor(Date.now() / 1000)
+          });
+        } catch (jwtError) {
+          console.error('Error decoding JWT:', jwtError);
+        }
       }
     } catch (tokenError) {
       console.error('Error getting Echo token:', tokenError);
