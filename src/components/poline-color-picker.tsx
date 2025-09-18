@@ -12,7 +12,6 @@ interface Color {
 
 interface PolineColorPickerProps {
   colors: Color[];
-  onColorsChange?: (colors: string[]) => void;
   expanded?: boolean;
   onToggleExpanded?: () => void;
 }
@@ -31,13 +30,11 @@ function hexToHsl(hex: string): [number, number, number] {
 
 export default function PolineColorPicker({
   colors,
-  onColorsChange,
   expanded = false,
   onToggleExpanded
 }: PolineColorPickerProps) {
   const [poline, setPoline] = useState<Poline | null>(null);
-  const pickerContainerRef = useRef<HTMLDivElement>(null);
-  const pickerRef = useRef<HTMLElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Initialize poline with colors from props
   useEffect(() => {
@@ -68,56 +65,85 @@ export default function PolineColorPicker({
     }
   }, [colors]);
 
-  // Load the poline picker when expanded
+  // Send colors to iframe when expanded and colors change
   useEffect(() => {
-    if (!expanded) return;
-
-    const container = pickerContainerRef.current;
-    if (!container) return;
-
-    // Load the web component script
-    const script = document.createElement('script');
-    script.type = 'module';
-    script.innerHTML = `
-      import { Poline, PolinePicker } from 'https://unpkg.com/poline/dist/picker.mjs';
-      
-      const container = document.querySelector('[data-poline-container]');
-      if (container && !container.querySelector('poline-picker')) {
-        const picker = document.createElement('poline-picker');
-        picker.setAttribute('interactive', '');
-        picker.setAttribute('allow-add-points', '');
-        picker.style.cssText = 'width: 100%; height: 100%; display: block;';
-        
-        container.innerHTML = '';
-        container.appendChild(picker);
-        
-        // Set initial poline if available
-        if (window.initialPoline) {
-          picker.setPoline(window.initialPoline);
-        }
-        
-        // Dispatch ready event
-        window.dispatchEvent(new CustomEvent('poline-picker-ready', { detail: { picker } }));
-      }
-    `;
-    
-    container.setAttribute('data-poline-container', 'true');
-    if (poline) {
-      (window as unknown as { initialPoline: Poline }).initialPoline = poline;
+    if (expanded && iframeRef.current && colors.length > 0) {
+      // Small delay to ensure iframe is ready
+      setTimeout(() => {
+        iframeRef.current?.contentWindow?.postMessage({
+          type: 'set-ai-colors',
+          colors: colors
+        }, '*');
+      }, 500);
     }
-    
-    document.head.appendChild(script);
+  }, [colors, expanded]);
 
-    const handleReady = (event: CustomEvent) => {
-      pickerRef.current = event.detail.picker;
+  // Listen for poline color updates to display in the poline palette section
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'poline-colors-update') {
+        const colorsDisplay = document.getElementById('poline-colors-display');
+        if (colorsDisplay) {
+          // Convert HSL CSS strings to hex for display
+          const colors = event.data.colors;
+          colorsDisplay.innerHTML = colors.map((color: string, index: number) => {
+            // Parse HSL string and convert to hex for display
+            const hslMatch = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+            let hexColor = color;
+            
+            if (hslMatch) {
+              const h = parseInt(hslMatch[1]);
+              const s = parseInt(hslMatch[2]) / 100;
+              const l = parseInt(hslMatch[3]) / 100;
+
+              // Convert HSL to RGB
+              const c = (1 - Math.abs(2 * l - 1)) * s;
+              const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+              const m = l - c / 2;
+
+              let r = 0, g = 0, b = 0;
+
+              if (0 <= h && h < 60) {
+                r = c; g = x; b = 0;
+              } else if (60 <= h && h < 120) {
+                r = x; g = c; b = 0;
+              } else if (120 <= h && h < 180) {
+                r = 0; g = c; b = x;
+              } else if (180 <= h && h < 240) {
+                r = 0; g = x; b = c;
+              } else if (240 <= h && h < 300) {
+                r = x; g = 0; b = c;
+              } else if (300 <= h && h < 360) {
+                r = c; g = 0; b = x;
+              }
+
+              // Convert to hex
+              const rHex = Math.round((r + m) * 255).toString(16).padStart(2, '0');
+              const gHex = Math.round((g + m) * 255).toString(16).padStart(2, '0');
+              const bHex = Math.round((b + m) * 255).toString(16).padStart(2, '0');
+
+              hexColor = `#${rHex}${gHex}${bHex}`;
+            }
+
+            return `
+              <div class="group">
+                <div
+                  style="background-color: ${hexColor}"
+                  class="w-full h-12 rounded-lg shadow-sm border border-gray-200 cursor-pointer transition-transform group-hover:scale-105"
+                  onclick="navigator.clipboard.writeText('${hexColor}')"
+                  title="Click to copy: ${hexColor}"
+                ></div>
+                <p class="text-xs text-gray-500 mt-1 font-mono truncate">${hexColor}</p>
+              </div>
+            `;
+          }).join('');
+        }
+      }
     };
 
-    window.addEventListener('poline-picker-ready', handleReady as EventListener, { once: true });
-
-    return () => {
-      window.removeEventListener('poline-picker-ready', handleReady as EventListener);
-    };
-  }, [expanded, poline]);
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   if (!expanded) {
     return (
@@ -156,6 +182,7 @@ export default function PolineColorPicker({
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="font-medium text-gray-900 mb-3">Color Space Visualization</h4>
             <iframe
+              ref={iframeRef}
               src="/poline-picker.html"
               style={{
                 width: '400px',
@@ -167,6 +194,17 @@ export default function PolineColorPicker({
                 backgroundColor: '#fff'
               }}
               title="Poline Color Picker"
+              onLoad={() => {
+                // Send AI colors when iframe loads
+                if (colors.length > 0) {
+                  setTimeout(() => {
+                    iframeRef.current?.contentWindow?.postMessage({
+                      type: 'set-ai-colors',
+                      colors: colors
+                    }, '*');
+                  }, 100);
+                }
+              }}
             />
             <p className="text-xs text-gray-500 mt-2">
               Drag the anchor points to modify colors in 3D space
@@ -174,33 +212,15 @@ export default function PolineColorPicker({
           </div>
         </div>
 
-        {/* Generated Colors */}
+        {/* Poline Colors */}
         <div className="space-y-4">
           <div className="bg-gray-50 rounded-lg p-4">
-            <h4 className="font-medium text-gray-900 mb-3">Generated Palette</h4>
-            {poline && (
-              <div className="grid grid-cols-4 gap-2">
-                {poline.colors.map((color, index) => {
-                  const hexColor = formatHex({
-                    mode: 'hsl',
-                    h: color[0],
-                    s: color[1],
-                    l: color[2]
-                  });
-                  return (
-                    <div key={index} className="group">
-                      <div
-                        style={{ backgroundColor: hexColor }}
-                        className="w-full h-12 rounded-lg shadow-sm border border-gray-200 cursor-pointer transition-transform group-hover:scale-105"
-                        onClick={() => navigator.clipboard.writeText(hexColor)}
-                        title={`Click to copy: ${hexColor}`}
-                      />
-                      <p className="text-xs text-gray-500 mt-1 font-mono truncate">{hexColor}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <h4 className="font-medium text-gray-900 mb-3">Poline Palette</h4>
+            <div id="poline-colors-display" className="grid grid-cols-4 gap-2">
+              <p className="text-xs text-gray-500 col-span-4 text-center py-4">
+                Colors will update as you interact with the poline picker above
+              </p>
+            </div>
           </div>
         </div>
       </div>

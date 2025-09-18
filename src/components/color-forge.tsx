@@ -32,6 +32,7 @@ export default function ColorForge() {
 
   const { savePalette } = usePalettes();
 
+
   // Helper function to convert HSL CSS string to hex
   const hslToHex = (hslString: string): string => {
     // Parse HSL string like "hsl(120, 50%, 60%)"
@@ -329,18 +330,6 @@ export default function ColorForge() {
             colors={palette.colors}
             expanded={polineExpanded}
             onToggleExpanded={() => setPolineExpanded(!polineExpanded)}
-            onColorsChange={(newColors) => {
-              const updatedColors = newColors.map((color, index) => ({
-                hex: hslToHex(color),
-                name: palette.colors[index]?.name || `Color ${index + 1}`,
-                role: palette.colors[index]?.role || 'generated'
-              }));
-
-              setPalette({
-                ...palette,
-                colors: updatedColors.slice(0, palette.colors.length)
-              });
-            }}
           />
         </div>
       )}
