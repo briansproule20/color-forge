@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import PaletteManager from "./palette-manager";
-import PolineColorPicker from "./poline-color-picker";
+// import PolineColorPicker from "./poline-color-picker";
 import { usePalettes } from "@/hooks/usePalettes";
 
 interface Color {
@@ -324,8 +324,8 @@ export default function ColorForge() {
             </div>
           </div>
 
-          {/* Poline Color Picker Integration */}
-          <PolineColorPicker
+          {/* Poline Color Picker Integration - temporarily disabled */}
+          {/* <PolineColorPicker
             colors={palette.colors}
             expanded={polineExpanded}
             onToggleExpanded={() => setPolineExpanded(!polineExpanded)}
@@ -342,7 +342,7 @@ export default function ColorForge() {
                 colors: updatedColors.slice(0, palette.colors.length) // Maintain original palette size
               });
             }}
-          />
+          /> */}
         </div>
       )}
         </>
