@@ -31,7 +31,7 @@ function hexToHsl(hex: string): [number, number, number] {
 
 export default function PolineColorPicker({
   colors,
-  onColorsChange,
+  onColorsChange: _onColorsChange,
   expanded = false,
   onToggleExpanded
 }: PolineColorPickerProps) {
