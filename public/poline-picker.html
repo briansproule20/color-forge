@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { margin: 0; padding: 0; }
+        poline-picker {
+            width: 100%;
+            height: 100%;
+            display: block;
+            --poline-picker-line-color: #333;
+            --poline-picker-bg-color: #fff;
+        }
+    </style>
+</head>
+<body>
+    <poline-picker id="picker" interactive allow-add-points></poline-picker>
+    
+    <script type="module">
+        import { Poline, PolinePicker } from 'https://unpkg.com/poline/dist/picker.mjs';
+        
+        const picker = document.getElementById('picker');
+        
+        // Default poline
+        const poline = new Poline({
+            anchorColors: [[0, 0.8, 0.6], [180, 0.7, 0.4]],
+            numPoints: 5
+        });
+        
+        picker.setPoline(poline);
+        
+        // Listen for changes and post to parent
+        picker.addEventListener('poline-change', (event) => {
+            const colors = event.detail.poline.colorsCSS;
+            window.parent.postMessage({ type: 'poline-change', colors }, '*');
+        });
+        
+        // Listen for updates from parent
+        window.addEventListener('message', (event) => {
+            if (event.data.type === 'update-poline') {
+                const newPoline = new Poline(event.data.config);
+                picker.setPoline(newPoline);
+            }
+        });
+    </script>
+</body>
+</html>

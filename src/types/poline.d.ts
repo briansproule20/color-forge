@@ -24,12 +24,12 @@ export interface PolinePickerElement extends HTMLElement {
   addPointAtPosition(x: number, y: number): ColorPoint | null;
   addEventListener<K extends keyof HTMLElementEventMap>(
     type: K,
-    listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+    listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown,
     options?: boolean | AddEventListenerOptions
   ): void;
   removeEventListener<K extends keyof HTMLElementEventMap>(
     type: K,
-    listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => any,
+    listener: (this: HTMLElement, ev: HTMLElementEventMap[K]) => unknown,
     options?: boolean | EventListenerOptions
   ): void;
 }

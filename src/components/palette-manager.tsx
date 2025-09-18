@@ -61,8 +61,12 @@ export default function PaletteManager({}: PaletteManagerProps) {
     link.download = `${palette.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_palette.css`;
     document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      if (link.parentNode) {
+        link.parentNode.removeChild(link);
+      }
+      URL.revokeObjectURL(url);
+    }, 100);
   };
 
 
