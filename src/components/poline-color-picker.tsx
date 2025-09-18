@@ -36,53 +36,69 @@ export default function PolineColorPicker({
   const [poline, setPoline] = useState<Poline | null>(null);
   const [numSteps, setNumSteps] = useState(5);
   const [currentPolineColors, setCurrentPolineColors] = useState<[number, number, number][]>([]);
+  const [invertLightness, setInvertLightness] = useState(false);
+  const [closedLoop, setClosedLoop] = useState(false);
+  const [positionFunctionX, setPositionFunctionX] = useState('linearPosition');
+  const [positionFunctionY, setPositionFunctionY] = useState('linearPosition');
+  const [positionFunctionZ, setPositionFunctionZ] = useState('linearPosition');
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Function to update the poline palette display using culori
-  const updatePolineDisplay = (polineColors: [number, number, number][], steps: number) => {
+  const updatePolineDisplay = (polineColors: [number, number, number][]) => {
+    console.log('updatePolineDisplay called with:', polineColors);
     const colorsDisplay = document.getElementById('poline-colors-display');
+    console.log('Found display element:', !!colorsDisplay);
     if (colorsDisplay && polineColors.length > 0) {
-      // Show the exact number of colors specified by steps
-      const displayColors = polineColors.slice(0, steps);
+      // Show ALL colors from the poline picker (up to 24 max for display)
+      const displayColors = polineColors.slice(0, Math.min(24, polineColors.length));
       
-      // Calculate dynamic width based on number of colors
-      // Container is max-w-2xl (672px), with gaps and padding
-      const containerWidth = 640; // Approximate usable width
-      const gapSpace = (displayColors.length - 1) * 8; // 8px gaps between items
-      const availableWidth = containerWidth - gapSpace;
-      const swatchWidth = Math.floor(availableWidth / displayColors.length);
-      const minWidth = 60; // Minimum swatch width
-      const maxWidth = 120; // Maximum swatch width
+      // Calculate dynamic width based on number of colors - FIXED CONTAINER, NO GAPS
+      const containerWidth = 500; // Fixed container width
+      const swatchWidth = Math.floor(containerWidth / displayColors.length);
+      const minWidth = 10; // Much smaller minimum for many colors
+      const maxWidth = 100; // Maximum swatch width
       const finalWidth = Math.max(minWidth, Math.min(maxWidth, swatchWidth));
       
       colorsDisplay.innerHTML = displayColors.map((color, index) => {
         // Use culori to convert HSL to hex
-        const hexColor = formatHex({
-          mode: 'hsl',
-          h: color[0],
-          s: color[1],
-          l: color[2]
-        });
+        let hexColor;
+        try {
+          hexColor = formatHex({
+            mode: 'hsl',
+            h: color[0],
+            s: color[1],
+            l: color[2]
+          });
+          if (!hexColor || hexColor === '#000000') {
+            // Fallback if culori fails
+            hexColor = `hsl(${color[0]}, ${color[1] * 100}%, ${color[2] * 100}%)`;
+          }
+        } catch (e) {
+          console.error('Color conversion failed:', color, e);
+          hexColor = `hsl(${color[0]}, ${color[1] * 100}%, ${color[2] * 100}%)`;
+        }
 
         return `
-          <div class="group cursor-pointer flex-shrink-0" style="width: ${finalWidth}px" onclick="
-            navigator.clipboard.writeText('${hexColor}');
-            const elem = this.querySelector('p');
-            const original = elem.textContent;
-            elem.textContent = 'Copied!';
-            elem.style.color = '#059669';
-            setTimeout(() => {
-              elem.textContent = original;
-              elem.style.color = '#6b7280';
-            }, 1000);
-          ">
-            <div
-              style="background-color: ${hexColor}"
-              class="w-full h-24 rounded-lg shadow-sm transition-transform group-hover:scale-105"
-            ></div>
-            <div class="mt-2 text-center">
-              <p class="text-xs text-gray-500">${hexColor}</p>
-            </div>
+          <div 
+            class="cursor-pointer flex-shrink-0 relative group" 
+            style="width: ${finalWidth}px; height: 96px; background-color: ${hexColor};" 
+            onclick="
+              navigator.clipboard.writeText('${hexColor}');
+              
+              // Create and show copy notification
+              const notification = document.createElement('div');
+              notification.textContent = 'Copied!';
+              notification.className = 'absolute inset-0 bg-black bg-opacity-75 text-white text-xs font-mono flex items-center justify-center z-10';
+              this.appendChild(notification);
+              
+              setTimeout(() => {
+                if (notification.parentNode) {
+                  notification.parentNode.removeChild(notification);
+                }
+              }, 1000);
+            "
+            title="${hexColor}"
+          >
           </div>
         `;
       }).join('');
@@ -134,10 +150,12 @@ export default function PolineColorPicker({
   // Listen for poline color updates to display in the poline palette section
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      console.log('Received message:', event.data);
       if (event.data.type === 'poline-colors-update') {
         const polineColors = event.data.polineColors; // Raw HSL array from poline
+        console.log('Poline colors received:', polineColors);
         setCurrentPolineColors(polineColors);
-        updatePolineDisplay(polineColors, numSteps);
+        updatePolineDisplay(polineColors);
       }
     };
 
@@ -145,12 +163,12 @@ export default function PolineColorPicker({
     return () => window.removeEventListener('message', handleMessage);
   }, [numSteps]);
 
-  // Update display when numSteps changes
+  // Update display when colors change
   useEffect(() => {
     if (currentPolineColors.length > 0) {
-      updatePolineDisplay(currentPolineColors, numSteps);
+      updatePolineDisplay(currentPolineColors);
     }
-  }, [numSteps, currentPolineColors]);
+  }, [currentPolineColors]);
 
   if (!expanded) {
     return (
@@ -229,7 +247,7 @@ export default function PolineColorPicker({
         <div className="space-y-4">
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="font-medium text-gray-900 mb-3">Poline Palette</h4>
-            <div id="poline-colors-display" className="flex flex-wrap justify-center gap-2 w-full max-w-2xl mx-auto min-h-[120px]">
+            <div id="poline-colors-display" className="flex flex-wrap justify-center w-full h-24 overflow-hidden" style={{width: '500px', margin: '0 auto'}}>
               <p className="text-xs text-gray-500 col-span-full text-center py-4">
                 Colors will update as you interact with the poline picker above
               </p>
@@ -267,6 +285,190 @@ export default function PolineColorPicker({
                 <span>2</span>
                 <span>7</span>
                 <span>12</span>
+              </div>
+            </div>
+
+            {/* Advanced Poline Controls */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-3">
+                <h5 className="text-sm font-medium text-gray-700">Advanced Controls</h5>
+                <button
+                  onClick={() => {
+                    // Reset all controls to defaults
+                    setNumSteps(5);
+                    setInvertLightness(false);
+                    setClosedLoop(false);
+                    setPositionFunctionX('linearPosition');
+                    setPositionFunctionY('linearPosition');
+                    setPositionFunctionZ('linearPosition');
+                    
+                    // Clear current colors state
+                    setCurrentPolineColors([]);
+                    
+                    // Clear the display immediately
+                    const colorsDisplay = document.getElementById('poline-colors-display');
+                    if (colorsDisplay) {
+                      colorsDisplay.innerHTML = `
+                        <p class="text-xs text-gray-500 col-span-full text-center py-4">
+                          Colors will update as you interact with the poline picker above
+                        </p>
+                      `;
+                    }
+                    
+                    // Send reset message to iframe with AI colors
+                    if (iframeRef.current) {
+                      if (colors.length > 0) {
+                        // Reset to AI color positions
+                        iframeRef.current.contentWindow?.postMessage({
+                          type: 'reset-to-ai-colors',
+                          colors: colors
+                        }, '*');
+                      } else {
+                        // Fallback to defaults if no AI colors
+                        iframeRef.current.contentWindow?.postMessage({
+                          type: 'reset-to-defaults'
+                        }, '*');
+                      }
+                    }
+                  }}
+                  className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 rounded border border-gray-300 transition-colors"
+                >
+                  Reset
+                </button>
+              </div>
+              
+              {/* Toggle Controls */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={invertLightness}
+                    onChange={(e) => {
+                      setInvertLightness(e.target.checked);
+                      if (iframeRef.current) {
+                        iframeRef.current.contentWindow?.postMessage({
+                          type: 'update-config',
+                          config: { invertedLightness: e.target.checked }
+                        }, '*');
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Invert Lightness</span>
+                </label>
+                
+                <label className="flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={closedLoop}
+                    onChange={(e) => {
+                      setClosedLoop(e.target.checked);
+                      if (iframeRef.current) {
+                        iframeRef.current.contentWindow?.postMessage({
+                          type: 'update-config',
+                          config: { closedLoop: e.target.checked }
+                        }, '*');
+                      }
+                    }}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Closed Loop</span>
+                </label>
+              </div>
+
+              {/* Position Functions */}
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-4">
+                  {/* X-axis Position Function */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Position X
+                    </label>
+                    <select
+                      value={positionFunctionX}
+                      onChange={(e) => {
+                        setPositionFunctionX(e.target.value);
+                        if (iframeRef.current) {
+                          iframeRef.current.contentWindow?.postMessage({
+                            type: 'update-config',
+                            config: { positionFunctionX: e.target.value }
+                          }, '*');
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="linearPosition">Linear</option>
+                      <option value="exponentialPosition">Exponential</option>
+                      <option value="quadraticPosition">Quadratic</option>
+                      <option value="cubicPosition">Cubic</option>
+                      <option value="quarticPosition">Quartic</option>
+                      <option value="sinusoidalPosition">Sinusoidal (Default)</option>
+                      <option value="asinusoidalPosition">Asinusoidal</option>
+                      <option value="arcPosition">Arc</option>
+                      <option value="smoothStepPosition">Smooth Step</option>
+                    </select>
+                  </div>
+
+                  {/* Y-axis Position Function */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Position Y
+                    </label>
+                    <select
+                      value={positionFunctionY}
+                      onChange={(e) => {
+                        setPositionFunctionY(e.target.value);
+                        if (iframeRef.current) {
+                          iframeRef.current.contentWindow?.postMessage({
+                            type: 'update-config',
+                            config: { positionFunctionY: e.target.value }
+                          }, '*');
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="linearPosition">Linear</option>
+                      <option value="exponentialPosition">Exponential</option>
+                      <option value="quadraticPosition">Quadratic</option>
+                      <option value="cubicPosition">Cubic</option>
+                      <option value="quarticPosition">Quartic</option>
+                      <option value="sinusoidalPosition">Sinusoidal (Default)</option>
+                      <option value="asinusoidalPosition">Asinusoidal</option>
+                      <option value="arcPosition">Arc</option>
+                      <option value="smoothStepPosition">Smooth Step</option>
+                    </select>
+                  </div>
+
+                  {/* Z-axis Position Function */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                      Position Z
+                    </label>
+                    <select
+                      value={positionFunctionZ}
+                      onChange={(e) => {
+                        setPositionFunctionZ(e.target.value);
+                        if (iframeRef.current) {
+                          iframeRef.current.contentWindow?.postMessage({
+                            type: 'update-config',
+                            config: { positionFunctionZ: e.target.value }
+                          }, '*');
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="linearPosition">Linear</option>
+                      <option value="exponentialPosition">Exponential</option>
+                      <option value="quadraticPosition">Quadratic</option>
+                      <option value="cubicPosition">Cubic</option>
+                      <option value="quarticPosition">Quartic</option>
+                      <option value="sinusoidalPosition">Sinusoidal (Default)</option>
+                      <option value="asinusoidalPosition">Asinusoidal</option>
+                      <option value="arcPosition">Arc</option>
+                      <option value="smoothStepPosition">Smooth Step</option>
+                    </select>
+                  </div>
+                    </div>
               </div>
             </div>
           </div>

@@ -131,8 +131,22 @@ export default function ColorForge() {
   };
 
 
-  const copyToClipboard = (text: string) => {
+  const copyToClipboard = (text: string, element: HTMLElement) => {
     navigator.clipboard.writeText(text);
+    
+    // Show copy notification
+    const originalText = element.querySelector('.copy-text')?.textContent;
+    const copyTextElement = element.querySelector('.copy-text');
+    
+    if (copyTextElement) {
+      copyTextElement.textContent = 'Copied!';
+      copyTextElement.classList.add('text-green-600');
+      
+      setTimeout(() => {
+        copyTextElement.textContent = originalText;
+        copyTextElement.classList.remove('text-green-600');
+      }, 1000);
+    }
   };
 
   const saveCurrentPalette = async () => {
@@ -310,14 +324,14 @@ export default function ColorForge() {
             <h3 className="text-lg font-semibold text-gray-900">Generated Palette</h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {palette.colors.map((color, index) => (
-                <div key={index} className="group cursor-pointer" onClick={() => copyToClipboard(color.hex)}>
+                <div key={index} className="group cursor-pointer" onClick={(e) => copyToClipboard(color.hex, e.currentTarget)}>
                   <div
                     style={{ backgroundColor: color.hex }}
                     className="w-full h-24 rounded-lg shadow-sm transition-transform group-hover:scale-105"
                   />
                   <div className="mt-2 text-center">
                     <p className="font-medium text-gray-900 text-sm">{color.name}</p>
-                    <p className="text-xs text-gray-500">{color.hex}</p>
+                    <p className="copy-text text-xs text-gray-500">{color.hex}</p>
                     <p className="text-xs text-gray-400">{color.role}</p>
                   </div>
                 </div>
