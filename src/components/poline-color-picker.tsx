@@ -275,8 +275,8 @@ export default function PolineColorPicker({
                 <button
                   onClick={() => {
                     poline.shiftHue(30);
-                    if (pickerRef.current && (pickerRef.current as any).setPoline) {
-                      (pickerRef.current as any).setPoline(poline);
+                    if (pickerRef.current && (pickerRef.current as HTMLElement & { setPoline?: (poline: Poline) => void }).setPoline) {
+                      (pickerRef.current as HTMLElement & { setPoline: (poline: Poline) => void }).setPoline(poline);
                     }
                     if (onColorsChange) {
                       onColorsChange(poline.colorsCSS);
