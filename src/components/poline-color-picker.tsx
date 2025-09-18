@@ -24,9 +24,8 @@ function hexToHsl(hex: string): [number, number, number] {
 
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
-  let h: number, s: number, l: number;
-
-  l = (max + min) / 2;
+  let h: number, s: number;
+  const l = (max + min) / 2;
 
   if (max === min) {
     h = s = 0; // achromatic
@@ -114,7 +113,11 @@ export default function PolineColorPicker({
   useEffect(() => {
     if (!poline || !pickerRef.current || !isWebComponentLoaded || !expanded) return;
 
-    const picker = pickerRef.current as any;
+    const picker = pickerRef.current as HTMLElement & {
+      setPoline?: (poline: Poline) => void;
+      addEventListener: (event: string, handler: (event: CustomEvent) => void) => void;
+      removeEventListener: (event: string, handler: (event: CustomEvent) => void) => void;
+    };
 
     // Set the poline instance on the picker
     if (picker.setPoline) {
@@ -122,8 +125,8 @@ export default function PolineColorPicker({
     }
 
     // Listen for changes from the picker
-    const handlePolineChange = (event: any) => {
-      const updatedPoline = event.detail.poline;
+    const handlePolineChange = (event: CustomEvent) => {
+      const updatedPoline = (event.detail as { poline: Poline }).poline;
       if (onColorsChange) {
         onColorsChange(updatedPoline.colorsCSS);
       }
@@ -237,8 +240,8 @@ export default function PolineColorPicker({
                     onChange={(e) => {
                       const newValue = parseInt(e.target.value);
                       poline.numPoints = newValue;
-                      if (pickerRef.current && (pickerRef.current as any).setPoline) {
-                        (pickerRef.current as any).setPoline(poline);
+                      if (pickerRef.current && (pickerRef.current as HTMLElement & { setPoline?: (poline: Poline) => void }).setPoline) {
+                        (pickerRef.current as HTMLElement & { setPoline: (poline: Poline) => void }).setPoline(poline);
                       }
                       if (onColorsChange) {
                         onColorsChange(poline.colorsCSS);
@@ -255,8 +258,8 @@ export default function PolineColorPicker({
                     checked={poline.closedLoop}
                     onChange={(e) => {
                       poline.closedLoop = e.target.checked;
-                      if (pickerRef.current && (pickerRef.current as any).setPoline) {
-                        (pickerRef.current as any).setPoline(poline);
+                      if (pickerRef.current && (pickerRef.current as HTMLElement & { setPoline?: (poline: Poline) => void }).setPoline) {
+                        (pickerRef.current as HTMLElement & { setPoline: (poline: Poline) => void }).setPoline(poline);
                       }
                       if (onColorsChange) {
                         onColorsChange(poline.colorsCSS);
