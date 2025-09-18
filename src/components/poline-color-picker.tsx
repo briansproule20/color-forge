@@ -12,7 +12,6 @@ interface Color {
 
 interface PolineColorPickerProps {
   colors: Color[];
-  onColorsChange?: (colors: string[]) => void;
   expanded?: boolean;
   onToggleExpanded?: () => void;
 }
@@ -31,7 +30,6 @@ function hexToHsl(hex: string): [number, number, number] {
 
 export default function PolineColorPicker({
   colors,
-  onColorsChange: _onColorsChange,
   expanded = false,
   onToggleExpanded
 }: PolineColorPickerProps) {
@@ -102,7 +100,9 @@ export default function PolineColorPicker({
     `;
     
     container.setAttribute('data-poline-container', 'true');
-    (window as unknown as { initialPoline: Poline }).initialPoline = poline;
+    if (poline) {
+      (window as unknown as { initialPoline: Poline }).initialPoline = poline;
+    }
     
     document.head.appendChild(script);
 
