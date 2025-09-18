@@ -27,8 +27,48 @@ export default function ColorForge() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'generate' | 'manage'>('generate');
   const [numColors, setNumColors] = useState(5);
+  const [polineExpanded, setPolineExpanded] = useState(false);
 
   const { savePalette } = usePalettes();
+
+  // Helper function to convert HSL CSS string to hex
+  const hslToHex = (hslString: string): string => {
+    // Parse HSL string like "hsl(120, 50%, 60%)"
+    const match = hslString.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
+    if (!match) return hslString; // Return original if not HSL format
+
+    const h = parseInt(match[1]);
+    const s = parseInt(match[2]) / 100;
+    const l = parseInt(match[3]) / 100;
+
+    // Convert HSL to RGB
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs((h / 60) % 2 - 1));
+    const m = l - c / 2;
+
+    let r = 0, g = 0, b = 0;
+
+    if (0 <= h && h < 60) {
+      r = c; g = x; b = 0;
+    } else if (60 <= h && h < 120) {
+      r = x; g = c; b = 0;
+    } else if (120 <= h && h < 180) {
+      r = 0; g = c; b = x;
+    } else if (180 <= h && h < 240) {
+      r = 0; g = x; b = c;
+    } else if (240 <= h && h < 300) {
+      r = x; g = 0; b = c;
+    } else if (300 <= h && h < 360) {
+      r = c; g = 0; b = x;
+    }
+
+    // Convert to 0-255 range and then to hex
+    const rHex = Math.round((r + m) * 255).toString(16).padStart(2, '0');
+    const gHex = Math.round((g + m) * 255).toString(16).padStart(2, '0');
+    const bHex = Math.round((b + m) * 255).toString(16).padStart(2, '0');
+
+    return `#${rHex}${gHex}${bHex}`;
+  };
 
 
   const generatePalette = async () => {
