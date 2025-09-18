@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Poline } from 'poline';
-import { formatHex, hsl } from 'culori';
+import { formatHex } from 'culori';
 
 interface Color {
   hex: string;
@@ -16,24 +15,12 @@ interface PolineColorPickerProps {
   onToggleExpanded?: () => void;
 }
 
-// Helper function to convert hex to HSL using culori
-function hexToHsl(hex: string): [number, number, number] {
-  const hslColor = hsl(hex);
-  if (!hslColor) return [0, 0, 0.5];
-
-  return [
-    hslColor.h || 0,
-    hslColor.s || 0,
-    hslColor.l || 0.5
-  ];
-}
 
 export default function PolineColorPicker({
   colors,
   expanded = false,
   onToggleExpanded
 }: PolineColorPickerProps) {
-  const [poline, setPoline] = useState<Poline | null>(null);
   const [numSteps, setNumSteps] = useState(5);
   const [currentPolineColors, setCurrentPolineColors] = useState<[number, number, number][]>([]);
   const [invertLightness, setInvertLightness] = useState(false);
@@ -59,7 +46,7 @@ export default function PolineColorPicker({
       const maxWidth = 100; // Maximum swatch width
       const finalWidth = Math.max(minWidth, Math.min(maxWidth, swatchWidth));
       
-      colorsDisplay.innerHTML = displayColors.map((color, index) => {
+      colorsDisplay.innerHTML = displayColors.map((color) => {
         // Use culori to convert HSL to hex
         let hexColor;
         try {
@@ -105,34 +92,6 @@ export default function PolineColorPicker({
     }
   };
 
-  // Initialize poline with colors from props
-  useEffect(() => {
-    if (colors.length >= 2) {
-      const firstColor = hexToHsl(colors[0].hex);
-      const middleIndex = Math.floor(colors.length / 2);
-      const middleColor = hexToHsl(colors[middleIndex].hex);
-
-      const anchorColors: [number, number, number][] = [
-        [
-          isNaN(firstColor[0]) ? 0 : firstColor[0],
-          isNaN(firstColor[1]) ? 0.7 : Math.max(0.2, Math.min(1, firstColor[1])),
-          isNaN(firstColor[2]) ? 0.5 : Math.max(0.2, Math.min(0.8, firstColor[2]))
-        ],
-        [
-          isNaN(middleColor[0]) ? 180 : middleColor[0],
-          isNaN(middleColor[1]) ? 0.7 : Math.max(0.2, Math.min(1, middleColor[1])),
-          isNaN(middleColor[2]) ? 0.5 : Math.max(0.2, Math.min(0.8, middleColor[2]))
-        ]
-      ];
-
-      const newPoline = new Poline({
-        anchorColors,
-        numPoints: Math.max(1, Math.min(10, colors.length - 2))
-      });
-
-      setPoline(newPoline);
-    }
-  }, [colors]);
 
   // Send colors to iframe when expanded and colors change
   useEffect(() => {
