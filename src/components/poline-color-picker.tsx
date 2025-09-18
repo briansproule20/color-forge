@@ -34,7 +34,60 @@ export default function PolineColorPicker({
   onToggleExpanded
 }: PolineColorPickerProps) {
   const [poline, setPoline] = useState<Poline | null>(null);
+  const [numSteps, setNumSteps] = useState(5);
+  const [currentPolineColors, setCurrentPolineColors] = useState<[number, number, number][]>([]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Function to update the poline palette display using culori
+  const updatePolineDisplay = (polineColors: [number, number, number][], steps: number) => {
+    const colorsDisplay = document.getElementById('poline-colors-display');
+    if (colorsDisplay && polineColors.length > 0) {
+      // Show the exact number of colors specified by steps
+      const displayColors = polineColors.slice(0, steps);
+      
+      // Calculate dynamic width based on number of colors
+      // Container is max-w-2xl (672px), with gaps and padding
+      const containerWidth = 640; // Approximate usable width
+      const gapSpace = (displayColors.length - 1) * 8; // 8px gaps between items
+      const availableWidth = containerWidth - gapSpace;
+      const swatchWidth = Math.floor(availableWidth / displayColors.length);
+      const minWidth = 60; // Minimum swatch width
+      const maxWidth = 120; // Maximum swatch width
+      const finalWidth = Math.max(minWidth, Math.min(maxWidth, swatchWidth));
+      
+      colorsDisplay.innerHTML = displayColors.map((color, index) => {
+        // Use culori to convert HSL to hex
+        const hexColor = formatHex({
+          mode: 'hsl',
+          h: color[0],
+          s: color[1],
+          l: color[2]
+        });
+
+        return `
+          <div class="group cursor-pointer flex-shrink-0" style="width: ${finalWidth}px" onclick="
+            navigator.clipboard.writeText('${hexColor}');
+            const elem = this.querySelector('p');
+            const original = elem.textContent;
+            elem.textContent = 'Copied!';
+            elem.style.color = '#059669';
+            setTimeout(() => {
+              elem.textContent = original;
+              elem.style.color = '#6b7280';
+            }, 1000);
+          ">
+            <div
+              style="background-color: ${hexColor}"
+              class="w-full h-24 rounded-lg shadow-sm transition-transform group-hover:scale-105"
+            ></div>
+            <div class="mt-2 text-center">
+              <p class="text-xs text-gray-500">${hexColor}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  };
 
   // Initialize poline with colors from props
   useEffect(() => {
@@ -82,68 +135,22 @@ export default function PolineColorPicker({
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
       if (event.data.type === 'poline-colors-update') {
-        const colorsDisplay = document.getElementById('poline-colors-display');
-        if (colorsDisplay) {
-          // Convert HSL CSS strings to hex for display
-          const colors = event.data.colors;
-          colorsDisplay.innerHTML = colors.map((color: string, index: number) => {
-            // Parse HSL string and convert to hex for display
-            const hslMatch = color.match(/hsl\((\d+),\s*(\d+)%,\s*(\d+)%\)/);
-            let hexColor = color;
-            
-            if (hslMatch) {
-              const h = parseInt(hslMatch[1]);
-              const s = parseInt(hslMatch[2]) / 100;
-              const l = parseInt(hslMatch[3]) / 100;
-
-              // Convert HSL to RGB
-              const c = (1 - Math.abs(2 * l - 1)) * s;
-              const x = c * (1 - Math.abs((h / 60) % 2 - 1));
-              const m = l - c / 2;
-
-              let r = 0, g = 0, b = 0;
-
-              if (0 <= h && h < 60) {
-                r = c; g = x; b = 0;
-              } else if (60 <= h && h < 120) {
-                r = x; g = c; b = 0;
-              } else if (120 <= h && h < 180) {
-                r = 0; g = c; b = x;
-              } else if (180 <= h && h < 240) {
-                r = 0; g = x; b = c;
-              } else if (240 <= h && h < 300) {
-                r = x; g = 0; b = c;
-              } else if (300 <= h && h < 360) {
-                r = c; g = 0; b = x;
-              }
-
-              // Convert to hex
-              const rHex = Math.round((r + m) * 255).toString(16).padStart(2, '0');
-              const gHex = Math.round((g + m) * 255).toString(16).padStart(2, '0');
-              const bHex = Math.round((b + m) * 255).toString(16).padStart(2, '0');
-
-              hexColor = `#${rHex}${gHex}${bHex}`;
-            }
-
-            return `
-              <div class="group">
-                <div
-                  style="background-color: ${hexColor}"
-                  class="w-full h-12 rounded-lg shadow-sm border border-gray-200 cursor-pointer transition-transform group-hover:scale-105"
-                  onclick="navigator.clipboard.writeText('${hexColor}')"
-                  title="Click to copy: ${hexColor}"
-                ></div>
-                <p class="text-xs text-gray-500 mt-1 font-mono truncate">${hexColor}</p>
-              </div>
-            `;
-          }).join('');
-        }
+        const polineColors = event.data.polineColors; // Raw HSL array from poline
+        setCurrentPolineColors(polineColors);
+        updatePolineDisplay(polineColors, numSteps);
       }
     };
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [numSteps]);
+
+  // Update display when numSteps changes
+  useEffect(() => {
+    if (currentPolineColors.length > 0) {
+      updatePolineDisplay(currentPolineColors, numSteps);
+    }
+  }, [numSteps, currentPolineColors]);
 
   if (!expanded) {
     return (
@@ -202,6 +209,12 @@ export default function PolineColorPicker({
                       type: 'set-ai-colors',
                       colors: colors
                     }, '*');
+                    // Request initial colors to populate the display
+                    setTimeout(() => {
+                      iframeRef.current?.contentWindow?.postMessage({
+                        type: 'request-colors'
+                      }, '*');
+                    }, 200);
                   }, 100);
                 }
               }}
@@ -216,10 +229,45 @@ export default function PolineColorPicker({
         <div className="space-y-4">
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="font-medium text-gray-900 mb-3">Poline Palette</h4>
-            <div id="poline-colors-display" className="grid grid-cols-4 gap-2">
-              <p className="text-xs text-gray-500 col-span-4 text-center py-4">
+            <div id="poline-colors-display" className="flex flex-wrap justify-center gap-2 w-full max-w-2xl mx-auto min-h-[120px]">
+              <p className="text-xs text-gray-500 col-span-full text-center py-4">
                 Colors will update as you interact with the poline picker above
               </p>
+            </div>
+            
+            {/* Steps Control */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-gray-700">
+                  Steps: {numSteps}
+                </label>
+                <span className="text-xs text-gray-500">
+                  {numSteps === 2 ? 'Anchor points only' : `${numSteps} color palette`}
+                </span>
+              </div>
+              <input
+                type="range"
+                min="2"
+                max="12"
+                value={numSteps}
+                onChange={(e) => {
+                  const newSteps = parseInt(e.target.value);
+                  setNumSteps(newSteps);
+                  // Send updated steps to iframe
+                  if (iframeRef.current) {
+                    iframeRef.current.contentWindow?.postMessage({
+                      type: 'update-steps',
+                      steps: newSteps
+                    }, '*');
+                  }
+                }}
+                className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+              />
+              <div className="flex justify-between text-xs text-gray-400 mt-1">
+                <span>2</span>
+                <span>7</span>
+                <span>12</span>
+              </div>
             </div>
           </div>
         </div>

@@ -21,25 +21,49 @@
         
         const picker = document.getElementById('picker');
         
-        // Default poline
-        const poline = new Poline({
+        // Store current poline config for steps updates
+        let currentConfig = {
             anchorColors: [[0, 0.8, 0.6], [180, 0.7, 0.4]],
             numPoints: 5
-        });
+        };
         
+        // Default poline using currentConfig
+        const poline = new Poline(currentConfig);
         picker.setPoline(poline);
         
         // Listen for changes and update the poline palette display
         picker.addEventListener('poline-change', (event) => {
-            const colors = event.detail.poline.colorsCSS;
-            window.parent.postMessage({ type: 'poline-colors-update', colors }, '*');
+            const { poline } = event.detail;
+            const polineColors = [...poline.colors]; // Raw HSL array [h, s, l]
+            window.parent.postMessage({ type: 'poline-colors-update', polineColors }, '*');
         });
         
         // Listen for updates from parent
         window.addEventListener('message', (event) => {
             if (event.data.type === 'update-poline') {
                 const newPoline = new Poline(event.data.config);
+                currentConfig = event.data.config;
                 picker.setPoline(newPoline);
+            } else if (event.data.type === 'update-steps') {
+                // Update number of intermediate points while keeping anchor colors fixed
+                // Steps = total colors including anchors, so intermediate points = steps - 2
+                const newNumPoints = Math.max(0, event.data.steps - 2);
+                
+                // Keep the same anchor colors, only change intermediate points
+                const updatedConfig = {
+                    ...currentConfig,
+                    numPoints: newNumPoints
+                };
+                
+                const updatedPoline = new Poline(updatedConfig);
+                picker.setPoline(updatedPoline);
+                
+                // Update currentConfig to reflect the change
+                currentConfig = updatedConfig;
+                
+                // Send updated colors immediately
+                const polineColors = [...updatedPoline.colors];
+                window.parent.postMessage({ type: 'poline-colors-update', polineColors }, '*');
             } else if (event.data.type === 'set-ai-colors') {
                 // Convert AI hex colors to HSL for poline
                 const anchorColors = event.data.colors.map(color => {
@@ -80,12 +104,20 @@
                     selectedAnchors = [anchorColors[0], [anchorColors[0][0] + 180, anchorColors[0][1], anchorColors[0][2]]];
                 }
                 
-                const aiPoline = new Poline({
+                // Update current config with AI colors
+                // Keep the anchor colors fixed and set intermediate points
+                currentConfig = {
                     anchorColors: selectedAnchors,
-                    numPoints: Math.max(1, numColors - 2)
-                });
+                    numPoints: Math.max(0, numColors - 2)
+                };
                 
+                const aiPoline = new Poline(currentConfig);
                 picker.setPoline(aiPoline);
+            } else if (event.data.type === 'request-colors') {
+                // Send current colors to parent
+                const poline = picker.getPoline();
+                const polineColors = [...poline.colors]; // Raw HSL array [h, s, l]
+                window.parent.postMessage({ type: 'poline-colors-update', polineColors }, '*');
             }
         });
     </script>
