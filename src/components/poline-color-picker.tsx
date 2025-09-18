@@ -36,10 +36,8 @@ export default function PolineColorPicker({
   onToggleExpanded
 }: PolineColorPickerProps) {
   const [poline, setPoline] = useState<Poline | null>(null);
-  const [pickerLoaded, setPickerLoaded] = useState(false);
   const pickerContainerRef = useRef<HTMLDivElement>(null);
-  const pickerRef = useRef<any>(null);
-  const scriptLoadedRef = useRef(false);
+  const pickerRef = useRef<HTMLElement | null>(null);
 
   // Initialize poline with colors from props
   useEffect(() => {
@@ -104,20 +102,18 @@ export default function PolineColorPicker({
     `;
     
     container.setAttribute('data-poline-container', 'true');
-    (window as any).initialPoline = poline;
+    (window as unknown as { initialPoline: Poline }).initialPoline = poline;
     
     document.head.appendChild(script);
 
-    const handleReady = (event: any) => {
+    const handleReady = (event: CustomEvent) => {
       pickerRef.current = event.detail.picker;
-      setPickerLoaded(true);
     };
 
-    window.addEventListener('poline-picker-ready', handleReady, { once: true });
+    window.addEventListener('poline-picker-ready', handleReady as EventListener, { once: true });
 
     return () => {
-      window.removeEventListener('poline-picker-ready', handleReady);
-      setPickerLoaded(false);
+      window.removeEventListener('poline-picker-ready', handleReady as EventListener);
     };
   }, [expanded, poline]);
 
