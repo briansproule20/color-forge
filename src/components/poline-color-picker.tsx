@@ -12,6 +12,7 @@ interface Color {
 
 interface PolineColorPickerProps {
   colors: Color[];
+  onColorsChange?: (colors: string[]) => void;
   expanded?: boolean;
   onToggleExpanded?: () => void;
 }
@@ -30,6 +31,7 @@ function hexToHsl(hex: string): [number, number, number] {
 
 export default function PolineColorPicker({
   colors,
+  onColorsChange,
   expanded = false,
   onToggleExpanded
 }: PolineColorPickerProps) {
