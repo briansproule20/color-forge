@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Poline } from 'poline';
+import { Poline, positionFunctions } from 'poline';
+import { formatHex, hsl } from 'culori';
 
 interface Color {
   hex: string;
@@ -16,33 +17,16 @@ interface PolineColorPickerProps {
   onToggleExpanded?: () => void;
 }
 
-// Helper function to convert hex to HSL
+// Helper function to convert hex to HSL using culori
 function hexToHsl(hex: string): [number, number, number] {
-  const r = parseInt(hex.slice(1, 3), 16) / 255;
-  const g = parseInt(hex.slice(3, 5), 16) / 255;
-  const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const hslColor = hsl(hex);
+  if (!hslColor) return [0, 0, 0.5];
 
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  let h: number, s: number;
-  const l = (max + min) / 2;
-
-  if (max === min) {
-    h = s = 0; // achromatic
-  } else {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-    switch (max) {
-      case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-      case g: h = (b - r) / d + 2; break;
-      case b: h = (r - g) / d + 4; break;
-      default: h = 0;
-    }
-    h /= 6;
-  }
-
-  return [h * 360, s, l];
+  return [
+    hslColor.h || 0,
+    hslColor.s || 0,
+    hslColor.l || 0.5
+  ];
 }
 
 export default function PolineColorPicker({
@@ -51,93 +35,138 @@ export default function PolineColorPicker({
   expanded = false,
   onToggleExpanded
 }: PolineColorPickerProps) {
-  const pickerRef = useRef<HTMLElement>(null);
   const [poline, setPoline] = useState<Poline | null>(null);
-  const [isWebComponentLoaded, setIsWebComponentLoaded] = useState(false);
+  const [currentXFunction, setCurrentXFunction] = useState('linearPosition');
+  const [currentYFunction, setCurrentYFunction] = useState('linearPosition');
+  const [currentZFunction, setCurrentZFunction] = useState('linearPosition');
+  const [pickerLoaded, setPickerLoaded] = useState(false);
+  const pickerContainerRef = useRef<HTMLDivElement>(null);
 
-  // Load the poline picker web component
-  useEffect(() => {
-    const loadPolinePicker = () => {
-      // Check if custom element is already defined
-      if (customElements.get('poline-picker')) {
-        setIsWebComponentLoaded(true);
-        return;
-      }
-
-      // Create and load the script for poline picker
-      const script = document.createElement('script');
-      script.type = 'module';
-      script.src = '/node_modules/poline/dist/picker.mjs';
-      script.onload = () => {
-        setIsWebComponentLoaded(true);
-      };
-      script.onerror = (error) => {
-        console.error('Failed to load poline picker:', error);
-        // Fallback to CDN
-        const fallbackScript = document.createElement('script');
-        fallbackScript.type = 'module';
-        fallbackScript.innerHTML = `
-          import { Poline, PolinePicker } from 'https://unpkg.com/poline/dist/picker.mjs';
-          window.Poline = Poline;
-        `;
-        fallbackScript.onload = () => setIsWebComponentLoaded(true);
-        document.head.appendChild(fallbackScript);
-      };
-
-      document.head.appendChild(script);
-    };
-
-    if (expanded && !isWebComponentLoaded) {
-      loadPolinePicker();
-    }
-  }, [expanded, isWebComponentLoaded]);
 
   // Initialize poline with colors from props
   useEffect(() => {
     if (colors.length >= 2) {
-      // Convert first few colors to HSL for anchor points
-      const anchorColors = colors.slice(0, Math.min(colors.length, 4)).map(color =>
-        hexToHsl(color.hex)
-      );
+      // Use exactly 2 anchor points for stable dragging
+      // But choose them better to represent the palette's range
+      const firstColor = hexToHsl(colors[0].hex);
+      const middleIndex = Math.floor(colors.length / 2);
+      const middleColor = hexToHsl(colors[middleIndex].hex);
+
+      const anchorColors: [number, number, number][] = [
+        [
+          isNaN(firstColor[0]) ? 0 : firstColor[0],
+          isNaN(firstColor[1]) ? 0.7 : Math.max(0.2, Math.min(1, firstColor[1])),
+          isNaN(firstColor[2]) ? 0.5 : Math.max(0.2, Math.min(0.8, firstColor[2]))
+        ],
+        [
+          isNaN(middleColor[0]) ? 180 : middleColor[0],
+          isNaN(middleColor[1]) ? 0.7 : Math.max(0.2, Math.min(1, middleColor[1])),
+          isNaN(middleColor[2]) ? 0.5 : Math.max(0.2, Math.min(0.8, middleColor[2]))
+        ]
+      ];
+
+      // Ensure anchor colors are different enough in hue space
+      const hDiff = Math.abs(anchorColors[1][0] - anchorColors[0][0]);
+      if (hDiff < 20) {
+        // Spread them apart in hue if they're too close
+        anchorColors[1][0] = (anchorColors[0][0] + 180) % 360;
+      }
+
+      console.log('Creating poline with 2 anchor colors:', anchorColors);
+
+      // Default steps: total colors minus 2 anchor points
+      const defaultSteps = Math.max(1, Math.min(10, colors.length - 2));
 
       const newPoline = new Poline({
         anchorColors,
-        numPoints: Math.max(2, Math.floor(colors.length / anchorColors.length))
+        numPoints: defaultSteps
       });
 
       setPoline(newPoline);
     }
   }, [colors]);
 
-  // Set up the poline picker when both web component and poline are ready
+  // Load the poline picker when expanded
   useEffect(() => {
-    if (!poline || !pickerRef.current || !isWebComponentLoaded || !expanded) return;
+    if (!expanded || pickerLoaded) return;
 
-    const picker = pickerRef.current as HTMLElement & {
-      setPoline?: (poline: Poline) => void;
-      addEventListener: (event: string, handler: (event: CustomEvent) => void) => void;
-      removeEventListener: (event: string, handler: (event: CustomEvent) => void) => void;
-    };
+    const loadPicker = async () => {
+      try {
+        // Load the poline picker module script (only once)
+        if (!document.querySelector('script[data-poline-module]')) {
+          const moduleScript = document.createElement('script');
+          moduleScript.type = 'module';
+          moduleScript.setAttribute('data-poline-module', 'true');
+          moduleScript.textContent = `
+            import { Poline, PolinePicker } from 'https://unpkg.com/poline/dist/picker.mjs';
+            window.Poline = Poline;
+            window.PolinePicker = PolinePicker;
+            window.dispatchEvent(new CustomEvent('poline-module-loaded'));
+          `;
+          document.head.appendChild(moduleScript);
+        }
 
-    // Set the poline instance on the picker
-    if (picker.setPoline) {
-      picker.setPoline(poline);
-    }
+        // Listen for module to load
+        const handleModuleLoaded = () => {
+          const container = document.getElementById('poline-picker-container');
+          if (container && !container.querySelector('poline-picker')) {
+            // Create the picker element
+            const picker = document.createElement('poline-picker');
+            picker.id = 'picker';
+            picker.setAttribute('interactive', '');
+            picker.setAttribute('allow-add-points', '');
+            picker.style.width = '100%';
+            picker.style.height = '100%';
+            picker.style.display = 'block';
 
-    // Listen for changes from the picker
-    const handlePolineChange = (event: CustomEvent) => {
-      const updatedPoline = (event.detail as { poline: Poline }).poline;
-      if (onColorsChange) {
-        onColorsChange(updatedPoline.colorsCSS);
+            // Clear loading content safely and add picker
+            container.innerHTML = '';
+            container.appendChild(picker);
+
+            // Set the poline if available
+            if (poline) {
+              picker.setPoline(poline);
+            }
+
+            // Listen for poline changes
+            picker.addEventListener('poline-change', (event) => {
+              const updatedPoline = event.detail.poline;
+              setPoline(updatedPoline);
+
+              if (onColorsChange) {
+                const hexColors = updatedPoline.colors.map(color => {
+                  try {
+                    return formatHex({
+                      mode: 'hsl',
+                      h: color[0],
+                      s: color[1],
+                      l: color[2]
+                    });
+                  } catch {
+                    return '#000000';
+                  }
+                });
+                onColorsChange(hexColors);
+              }
+            });
+
+            setPickerLoaded(true);
+          }
+        };
+
+        if (window.Poline && window.PolinePicker) {
+          handleModuleLoaded();
+        } else {
+          window.addEventListener('poline-module-loaded', handleModuleLoaded, { once: true });
+        }
+
+      } catch (error) {
+        console.error('Failed to load poline picker:', error);
       }
     };
 
-    picker.addEventListener('poline-change', handlePolineChange);
-
-    return () => {
-      picker.removeEventListener('poline-change', handlePolineChange);
-    };
-  }, [poline, isWebComponentLoaded, expanded, onColorsChange]);
+    loadPicker();
+  }, [expanded, poline, pickerLoaded, onColorsChange]);
 
   if (!expanded) {
     return (
@@ -146,9 +175,9 @@ export default function PolineColorPicker({
           <h3 className="text-lg font-semibold text-gray-900">Interactive Color Playground</h3>
           <button
             onClick={onToggleExpanded}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-300 transform hover:scale-105 font-medium shadow-lg hover:shadow-xl"
           >
-            🎨 Expand Playground
+            🎨 Open Poline Playground
           </button>
         </div>
         <p className="text-gray-600 text-sm">
@@ -171,33 +200,35 @@ export default function PolineColorPicker({
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Poline Picker Web Component */}
+        {/* Poline Picker */}
         <div className="space-y-4">
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="font-medium text-gray-900 mb-3">Color Space Visualization</h4>
-            {isWebComponentLoaded ? (
-              React.createElement('poline-picker', {
-                ref: pickerRef,
-                interactive: true,
-                'allow-add-points': true,
-                style: {
-                  width: '400px',
-                  height: '400px',
-                  maxWidth: '100%',
-                  display: 'block',
-                  margin: '0 auto'
-                }
-              })
-            ) : (
-              <div className="w-full h-96 bg-gray-200 rounded-lg flex items-center justify-center">
+            <div
+              id="poline-picker-container"
+              ref={pickerContainerRef}
+              style={{
+                width: '400px',
+                height: '400px',
+                maxWidth: '100%',
+                margin: '0 auto',
+                border: '1px solid #ccc',
+                borderRadius: '8px',
+                backgroundColor: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}
+            >
+              {!pickerLoaded && (
                 <div className="text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                  <p className="text-gray-600 text-sm">Loading Poline Picker...</p>
+                  <p className="text-gray-600 text-sm">Loading Color Wheel...</p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
             <p className="text-xs text-gray-500 mt-2">
-              Drag anchor points and click empty areas to add new points
+              Drag the anchor points (edge nodes) to modify colors in 3D space
             </p>
           </div>
         </div>
@@ -208,17 +239,25 @@ export default function PolineColorPicker({
             <h4 className="font-medium text-gray-900 mb-3">Generated Palette</h4>
             {poline && (
               <div className="grid grid-cols-4 gap-2">
-                {poline.colorsCSS.map((color, index) => (
-                  <div key={index} className="group">
-                    <div
-                      style={{ backgroundColor: color }}
-                      className="w-full h-12 rounded-lg shadow-sm border border-gray-200 cursor-pointer transition-transform group-hover:scale-105"
-                      onClick={() => navigator.clipboard.writeText(color)}
-                      title={`Click to copy: ${color}`}
-                    />
-                    <p className="text-xs text-gray-500 mt-1 font-mono truncate">{color}</p>
-                  </div>
-                ))}
+                {poline.colors.map((color, index) => {
+                  const hexColor = formatHex({
+                    mode: 'hsl',
+                    h: color[0],
+                    s: color[1],
+                    l: color[2]
+                  });
+                  return (
+                    <div key={index} className="group">
+                      <div
+                        style={{ backgroundColor: hexColor }}
+                        className="w-full h-12 rounded-lg shadow-sm border border-gray-200 cursor-pointer transition-transform group-hover:scale-105"
+                        onClick={() => navigator.clipboard.writeText(hexColor)}
+                        title={`Click to copy: ${hexColor}`}
+                      />
+                      <p className="text-xs text-gray-500 mt-1 font-mono truncate">{hexColor}</p>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -227,28 +266,230 @@ export default function PolineColorPicker({
           <div className="bg-gray-50 rounded-lg p-4">
             <h4 className="font-medium text-gray-900 mb-3">Controls</h4>
             {poline && (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Points between anchors: {poline.numPoints}
+                    Steps: {poline.numPoints} (Total colors: {poline.numPoints + 2})
                   </label>
                   <input
                     type="range"
-                    min="2"
+                    min="1"
                     max="10"
                     value={poline.numPoints}
                     onChange={(e) => {
-                      const newValue = parseInt(e.target.value);
-                      poline.numPoints = newValue;
-                      if (pickerRef.current && (pickerRef.current as HTMLElement & { setPoline?: (poline: Poline) => void }).setPoline) {
-                        (pickerRef.current as HTMLElement & { setPoline: (poline: Poline) => void }).setPoline(poline);
-                      }
-                      if (onColorsChange) {
-                        onColorsChange(poline.colorsCSS);
+                      const steps = parseInt(e.target.value);
+                      console.log('Changing steps to:', steps);
+
+                      try {
+                        // Create a new poline with the same anchor points but different numPoints
+                        const PolineClass = (window as any).Poline;
+                        if (!PolineClass) {
+                          console.error('Poline class not available');
+                          return;
+                        }
+
+                        const anchorColors = poline.anchorPoints.map(p => [p.hsl[0], p.hsl[1], p.hsl[2]]);
+                        console.log('Using anchor colors:', anchorColors);
+
+                        const newPoline = new PolineClass({
+                          anchorColors,
+                          numPoints: steps,
+                          positionFunctionX: (window as any).positionFunctions?.[currentXFunction],
+                          positionFunctionY: (window as any).positionFunctions?.[currentYFunction],
+                          positionFunctionZ: (window as any).positionFunctions?.[currentZFunction],
+                          closedLoop: poline.closedLoop,
+                          invertedLightness: poline.invertedLightness
+                        });
+
+                        console.log('Created new poline with', newPoline.colors.length, 'colors');
+                        setPoline(newPoline);
+
+                        if (pickerRef.current) {
+                          pickerRef.current.setPoline(newPoline);
+                        }
+
+                        if (onColorsChange) {
+                          const hexColors = newPoline.colors.map(color =>
+                            formatHex({ mode: 'hsl', h: color[0], s: color[1], l: color[2] })
+                          );
+                          onColorsChange(hexColors);
+                        }
+                      } catch (error) {
+                        console.error('Error updating steps:', error);
                       }
                     }}
                     className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                   />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>1 step (3 colors)</span>
+                    <span>10 steps (12 colors)</span>
+                  </div>
+                </div>
+
+
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">X-Axis</label>
+                    <select
+                      value={currentXFunction}
+                      onChange={(e) => {
+                        const functionName = e.target.value;
+                        console.log('Changing X function to:', functionName);
+                        const positionFunctions = (window as any).positionFunctions;
+                        const positionFunction = positionFunctions?.[functionName];
+
+                        if (positionFunction && poline) {
+                          try {
+                            const PolineClass = (window as any).Poline;
+                            const newPoline = new PolineClass({
+                              anchorColors: poline.anchorPoints.map(p => [p.hsl[0], p.hsl[1], p.hsl[2]]),
+                              numPoints: poline.numPoints,
+                              positionFunctionX: positionFunction,
+                              positionFunctionY: (window as any).positionFunctions?.[currentYFunction],
+                              positionFunctionZ: (window as any).positionFunctions?.[currentZFunction],
+                              closedLoop: poline.closedLoop,
+                              invertedLightness: poline.invertedLightness
+                            });
+
+                            setPoline(newPoline);
+                            setCurrentXFunction(functionName);
+
+                            if (pickerRef.current) {
+                              pickerRef.current.setPoline(newPoline);
+                            }
+
+                            if (onColorsChange) {
+                              const hexColors = newPoline.colors.map(color =>
+                                formatHex({ mode: 'hsl', h: color[0], s: color[1], l: color[2] })
+                              );
+                              onColorsChange(hexColors);
+                            }
+                          } catch (error) {
+                            console.error('Error updating X function:', error);
+                          }
+                        }
+                      }}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                    >
+                      <option value="linearPosition">Linear</option>
+                      <option value="exponentialPosition">Exponential</option>
+                      <option value="quadraticPosition">Quadratic</option>
+                      <option value="cubicPosition">Cubic</option>
+                      <option value="quarticPosition">Quartic</option>
+                      <option value="sinusoidalPosition">Sinusoidal</option>
+                      <option value="asinusoidalPosition">A-Sinusoidal</option>
+                      <option value="arcPosition">Arc</option>
+                      <option value="smoothStepPosition">Smooth Step</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Y-Axis</label>
+                    <select
+                      value={currentYFunction}
+                      onChange={(e) => {
+                        const functionName = e.target.value;
+                        console.log('Changing Y function to:', functionName);
+                        const positionFunctions = (window as any).positionFunctions;
+                        const positionFunction = positionFunctions?.[functionName];
+
+                        if (positionFunction && poline) {
+                          try {
+                            const PolineClass = (window as any).Poline;
+                            const newPoline = new PolineClass({
+                              anchorColors: poline.anchorPoints.map(p => [p.hsl[0], p.hsl[1], p.hsl[2]]),
+                              numPoints: poline.numPoints,
+                              positionFunctionX: (window as any).positionFunctions?.[currentXFunction],
+                              positionFunctionY: positionFunction,
+                              positionFunctionZ: (window as any).positionFunctions?.[currentZFunction],
+                              closedLoop: poline.closedLoop,
+                              invertedLightness: poline.invertedLightness
+                            });
+
+                            setPoline(newPoline);
+                            setCurrentYFunction(functionName);
+
+                            if (pickerRef.current) {
+                              pickerRef.current.setPoline(newPoline);
+                            }
+
+                            if (onColorsChange) {
+                              const hexColors = newPoline.colors.map(color =>
+                                formatHex({ mode: 'hsl', h: color[0], s: color[1], l: color[2] })
+                              );
+                              onColorsChange(hexColors);
+                            }
+                          } catch (error) {
+                            console.error('Error updating Y function:', error);
+                          }
+                        }
+                      }}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                    >
+                      <option value="linearPosition">Linear</option>
+                      <option value="exponentialPosition">Exponential</option>
+                      <option value="quadraticPosition">Quadratic</option>
+                      <option value="cubicPosition">Cubic</option>
+                      <option value="quarticPosition">Quartic</option>
+                      <option value="sinusoidalPosition">Sinusoidal</option>
+                      <option value="asinusoidalPosition">A-Sinusoidal</option>
+                      <option value="arcPosition">Arc</option>
+                      <option value="smoothStepPosition">Smooth Step</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Z-Axis</label>
+                    <select
+                      value={currentZFunction}
+                      onChange={(e) => {
+                        const functionName = e.target.value;
+                        console.log('Changing Z function to:', functionName);
+                        const positionFunctions = (window as any).positionFunctions;
+                        const positionFunction = positionFunctions?.[functionName];
+
+                        if (positionFunction && poline) {
+                          try {
+                            const PolineClass = (window as any).Poline;
+                            const newPoline = new PolineClass({
+                              anchorColors: poline.anchorPoints.map(p => [p.hsl[0], p.hsl[1], p.hsl[2]]),
+                              numPoints: poline.numPoints,
+                              positionFunctionX: (window as any).positionFunctions?.[currentXFunction],
+                              positionFunctionY: (window as any).positionFunctions?.[currentYFunction],
+                              positionFunctionZ: positionFunction,
+                              closedLoop: poline.closedLoop,
+                              invertedLightness: poline.invertedLightness
+                            });
+
+                            setPoline(newPoline);
+                            setCurrentZFunction(functionName);
+
+                            if (pickerRef.current) {
+                              pickerRef.current.setPoline(newPoline);
+                            }
+
+                            if (onColorsChange) {
+                              const hexColors = newPoline.colors.map(color =>
+                                formatHex({ mode: 'hsl', h: color[0], s: color[1], l: color[2] })
+                              );
+                              onColorsChange(hexColors);
+                            }
+                          } catch (error) {
+                            console.error('Error updating Z function:', error);
+                          }
+                        }
+                      }}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs"
+                    >
+                      <option value="linearPosition">Linear</option>
+                      <option value="exponentialPosition">Exponential</option>
+                      <option value="quadraticPosition">Quadratic</option>
+                      <option value="cubicPosition">Cubic</option>
+                      <option value="quarticPosition">Quartic</option>
+                      <option value="sinusoidalPosition">Sinusoidal</option>
+                      <option value="asinusoidalPosition">A-Sinusoidal</option>
+                      <option value="arcPosition">Arc</option>
+                      <option value="smoothStepPosition">Smooth Step</option>
+                    </select>
+                  </div>
                 </div>
 
                 <div className="flex items-center">
@@ -258,11 +499,14 @@ export default function PolineColorPicker({
                     checked={poline.closedLoop}
                     onChange={(e) => {
                       poline.closedLoop = e.target.checked;
-                      if (pickerRef.current && (pickerRef.current as HTMLElement & { setPoline?: (poline: Poline) => void }).setPoline) {
-                        (pickerRef.current as HTMLElement & { setPoline: (poline: Poline) => void }).setPoline(poline);
+                      if (pickerRef.current) {
+                        pickerRef.current.setPoline(poline);
                       }
                       if (onColorsChange) {
-                        onColorsChange(poline.colorsCSS);
+                        const hexColors = poline.colors.map(color =>
+                          formatHex({ mode: 'hsl', h: color[0], s: color[1], l: color[2] })
+                        );
+                        onColorsChange(hexColors);
                       }
                     }}
                     className="mr-2"
@@ -272,11 +516,35 @@ export default function PolineColorPicker({
                   </label>
                 </div>
 
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="inverted-lightness"
+                    checked={poline.invertedLightness}
+                    onChange={(e) => {
+                      poline.invertedLightness = e.target.checked;
+                      if (pickerRef.current) {
+                        pickerRef.current.setPoline(poline);
+                      }
+                      if (onColorsChange) {
+                        const hexColors = poline.colors.map(color =>
+                          formatHex({ mode: 'hsl', h: color[0], s: color[1], l: color[2] })
+                        );
+                        onColorsChange(hexColors);
+                      }
+                    }}
+                    className="mr-2"
+                  />
+                  <label htmlFor="inverted-lightness" className="text-sm text-gray-700">
+                    Inverted lightness
+                  </label>
+                </div>
+
                 <button
                   onClick={() => {
                     poline.shiftHue(30);
-                    if (pickerRef.current && (pickerRef.current as HTMLElement & { setPoline?: (poline: Poline) => void }).setPoline) {
-                      (pickerRef.current as HTMLElement & { setPoline: (poline: Poline) => void }).setPoline(poline);
+                    if (pickerRef.current) {
+                      pickerRef.current.setPoline(poline);
                     }
                     if (onColorsChange) {
                       onColorsChange(poline.colorsCSS);
@@ -292,17 +560,6 @@ export default function PolineColorPicker({
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h4 className="font-medium text-blue-900 mb-2">💡 How to use</h4>
-        <ul className="text-sm text-blue-800 space-y-1">
-          <li>• Drag anchor points to explore different color combinations</li>
-          <li>• Click empty areas to add new anchor points</li>
-          <li>• Adjust points between anchors to get more or fewer colors</li>
-          <li>• Enable closed loop to connect the first and last colors</li>
-          <li>• Use hue shift to explore variations of your palette</li>
-          <li>• Click any color to copy its value to clipboard</li>
-        </ul>
-      </div>
     </div>
   );
 }
